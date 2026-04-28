@@ -1,4 +1,4 @@
-# README: Meeting Preparation Bot
+#  Meeting Preparation Bot
 
 This repository contains the configuration and documentation for the **Meeting Preparation Bot**, an automated n8n workflow designed to streamline your daily schedule by providing AI-generated briefings for your upcoming meetings.
 
