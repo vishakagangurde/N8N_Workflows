@@ -1,0 +1,631 @@
+{
+  "name": "Multi-System Revenue Leakage Detector",
+  "nodes": [
+    {
+      "parameters": {
+        "content": "##  Revenue Intake & Opportunity Fetch\n\nFetches Closed Won deals from Salesforce to analyze finalized revenue data.",
+        "height": 368,
+        "width": 480,
+        "color": 7
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        1456,
+        800
+      ],
+      "typeVersion": 1,
+      "id": "e71f7581-3868-44a1-9841-fdeb7225e593",
+      "name": "Sticky Note7"
+    },
+    {
+      "parameters": {
+        "content": "## Batch Processing & Rate Control\n\nSplits data into batches and adds delay to avoid API limits and ensure smooth execution.",
+        "height": 368,
+        "width": 496,
+        "color": 7
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        1952,
+        800
+      ],
+      "typeVersion": 1,
+      "id": "b1133367-261d-452b-aa3d-6c736d323fae",
+      "name": "Sticky Note8"
+    },
+    {
+      "parameters": {
+        "content": "##  Billing Lookup & Revenue Comparison\n\nRetrieves billing data from Google Sheets and compares expected vs actual revenue to detect gaps.",
+        "height": 368,
+        "width": 464,
+        "color": 7
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        2464,
+        688
+      ],
+      "typeVersion": 1,
+      "id": "bcf1b15c-bd4c-4870-8946-b53311e79f8f",
+      "name": "Sticky Note9"
+    },
+    {
+      "parameters": {
+        "content": "##  AI Revenue Gap Analysis & Parsing\n\nAnalyzes the revenue gap using Google Gemini and converts output into structured JSON.",
+        "height": 368,
+        "width": 464,
+        "color": 7
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        2928,
+        704
+      ],
+      "typeVersion": 1,
+      "id": "ec7f048f-7b69-46b6-af2c-0a21f90847b0",
+      "name": "Sticky Note10"
+    },
+    {
+      "parameters": {
+        "content": "## Gap Validation & Filtering\n\nChecks if the revenue gap is valid (> 0) before proceeding to alerts and logging.",
+        "height": 384,
+        "width": 384,
+        "color": 7
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        3440,
+        768
+      ],
+      "typeVersion": 1,
+      "id": "457150af-0505-4a7e-8cc3-0485b01a32c5",
+      "name": "Sticky Note12"
+    },
+    {
+      "parameters": {
+        "content": "##  Alert Preparation\n\nBuilds the Slack message directly from parsed LLM analysis data.",
+        "height": 368,
+        "width": 384,
+        "color": 7
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        3840,
+        784
+      ],
+      "typeVersion": 1,
+      "id": "8ab1904d-b50d-43f1-a7c3-f4c3fdee9bab",
+      "name": "Sticky Note13"
+    },
+    {
+      "parameters": {
+        "content": "##  Slack Notification & Audit Logging\n\nSends alert via Slack and updates Salesforce with audit details for tracking.",
+        "height": 368,
+        "width": 672,
+        "color": 7
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        4272,
+        768
+      ],
+      "typeVersion": 1,
+      "id": "35368e62-8f91-49a9-9514-0e46ef503a99",
+      "name": "Sticky Note14"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "1e7e61db-f5a6-4744-8bb4-478da32a2e06",
+              "leftValue": "={{ Number($('Compare Revenue Totals').item.json.missing) > 0 }}",
+              "rightValue": 0,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        3616,
+        960
+      ],
+      "id": "4f084bad-45a8-417e-912e-90a65116640c",
+      "name": "Inconsistency Found?1"
+    },
+    {
+      "parameters": {
+        "modelId": {
+          "__rl": true,
+          "value": "models/gemini-2.5-flash",
+          "mode": "list",
+          "cachedResultName": "models/gemini-2.5-flash"
+        },
+        "messages": {
+          "values": [
+            {
+              "content": "=You are a revenue operations analyst. Analyze the following billing discrepancy and return a JSON object ONLY — no preamble, no markdown, just raw JSON.\n\nDeal Name: {{ $json.dealName }}\nStage: {{ $json.stageName }}\nContracted Amount: ${{ $json.expected }}\nActually Billed: ${{ $json.actual }}\nRevenue Gap: ${{ $json.missing }}\n\nSeverity rules:\n- critical: gap > $10,000\n- medium: gap between $1,000 and $10,000\n- low: gap < $1,000\nAlways return one of these three values for severity. Never return \"unknown\".\n\nReturn this exact JSON structure:\n{\n  \"severity\": \"critical | medium | low\",\n  \"rootCause\": \"one sentence explaining the likely cause\",\n  \"recommendation\": \"one sentence on what the finance team should do\",\n  \"auditNote\": \"a 2-3 sentence note suitable for logging in Salesforce\"\n}"
+            }
+          ]
+        },
+        "builtInTools": {},
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.googleGemini",
+      "typeVersion": 1.1,
+      "position": [
+        3056,
+        912
+      ],
+      "id": "4d891b1d-2d08-46ba-b495-61f1dee9df7a",
+      "name": "Analyze Revenue Gap",
+      "executeOnce": true,
+      "credentials": {
+        "googlePalmApi": {
+          "id": "Pp8fhk0h83q9i2lx",
+          "name": "sample2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "resource": "opportunity",
+        "operation": "getAll",
+        "limit": 20,
+        "options": {
+          "conditionsUi": {
+            "conditionValues": [
+              {
+                "field": "StageName",
+                "value": "Closed Won"
+              }
+            ]
+          },
+          "fields": "Id, Name, Amount, AccountId, StageName"
+        }
+      },
+      "type": "n8n-nodes-base.salesforce",
+      "typeVersion": 1,
+      "position": [
+        1760,
+        976
+      ],
+      "id": "7a0f8651-0dde-471c-b305-0fc33363286c",
+      "name": "Fetch Salesforce Opportunities",
+      "credentials": {
+        "salesforceOAuth2Api": {
+          "id": "sC9c1n9XqdOH5TdT",
+          "name": "Salesforce account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [
+        2064,
+        976
+      ],
+      "id": "580c7783-612a-4e8b-8cda-3251f612bc32",
+      "name": "Iterate Opportunities"
+    },
+    {
+      "parameters": {
+        "amount": 3
+      },
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        2304,
+        992
+      ],
+      "id": "3e7c1500-8c34-47a2-8da4-7be1a253b634",
+      "name": "API Rate Limit Delay",
+      "webhookId": "3bff627e-b143-42d7-8313-6ce0a688baf4"
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "value": "",
+          "mode": "list",
+          "cachedResultName": "ERP_DATA",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/16Uj9IGM3ZETmdlzGJio7sOuAt6ZWXXr3P-8KklwSwhI/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "gid=0",
+          "mode": "list",
+          "cachedResultName": "Sheet1",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/16Uj9IGM3ZETmdlzGJio7sOuAt6ZWXXr3P-8KklwSwhI/edit#gid=0"
+        },
+        "filtersUI": {
+          "values": [
+            {
+              "lookupColumn": "Deal ID",
+              "lookupValue": "={{ $json.AccountId }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        2528,
+        896
+      ],
+      "id": "4a9e5347-7697-45c4-bc3e-f0e3fd66b9b6",
+      "name": "Lookup Billing Record",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "RuID1Add5iZgOpU7",
+          "name": "sample account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const sfData = $('API Rate Limit Delay').item.json;\nconst sheetItems = items;\n\nconst opportunityId = sfData.Id;\nconst dealId = sfData.AccountId;\nconst dealName = sfData.Name;\nconst stageName = sfData.StageName;\n\nconst expected = Number(sfData.Amount) || 0;\n\nlet actual = 0;\nfor (const item of sheetItems) {\n  if (item.json['Deal ID'] === dealId) {\n    actual += Number(item.json['Billed Amount']) || 0;\n  }\n}\n\nconst missing = expected - actual;\n\nif (missing > 0) {\n  return [{\n    json: {\n      opportunityId,\n      dealId,\n      dealName,\n      stageName,\n      expected,\n      actual,\n      missing\n    }\n  }];\n}\n\nreturn [];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2752,
+        896
+      ],
+      "id": "d873daf2-a844-46fb-8e23-1c2275b6e474",
+      "name": "Compare Revenue Totals",
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "jsCode": "const item = $input.first().json;\n\n// Use emojis and bolding for better readability at a glance\nconst slackMessage = ` *Revenue Leakage Detected*\n*Deal:* ${item.dealName}\n*Status:* ${(item.severity || 'unknown').toUpperCase()}\n\n *Financial Gap:* $${item.missing.toLocaleString()}\n(Contracted: $${item.expected.toLocaleString()} | Billed: $${item.actual.toLocaleString()})\n\n*Root Cause:* ${item.rootCause}\n*Action:* ${item.recommendation}`;\n\nreturn {\n  ...item,\n  slackMessage\n};"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3984,
+        960
+      ],
+      "id": "904c103d-5920-4bcc-99ac-24a176caf5df",
+      "name": "Prepare Slack Message"
+    },
+    {
+      "parameters": {
+        "authentication": "oAuth2",
+        "select": "user",
+        "user": {
+          "__rl": true,
+          "value": "U0AP3B0UTMH",
+          "mode": "list",
+          "cachedResultName": "vishakag21"
+        },
+        "text": "={{ $json.slackMessage }}",
+        "otherOptions": {}
+      },
+      "type": "n8n-nodes-base.slack",
+      "typeVersion": 2.4,
+      "position": [
+        4384,
+        976
+      ],
+      "id": "4b6fbdd3-abc4-4a41-85ea-e423020bee1a",
+      "name": "Alert Revenue Gap",
+      "webhookId": "5e259b4e-8002-4818-9ba7-adb531f8ca7d",
+      "credentials": {
+        "slackOAuth2Api": {
+          "id": "lKAQNqNsGCJoONSX",
+          "name": "Slack OAuth2 API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "resource": "opportunity",
+        "operation": "update",
+        "opportunityId": "={{ $('Format AI Results').item.json.opportunityId }}",
+        "updateFields": {
+          "customFieldsUi": {
+            "customFieldsValues": []
+          },
+          "description": "=Revenue Leakage Detected {{ $('Format AI Results').item.json.rootCause }}\n\n{{ $('Format AI Results').item.json.auditNote }}\n\nExpected:  {{ $('Format AI Results').item.json.expected }}| Billed: {{ $('Format AI Results').item.json.actual }} | Gap: {{ $('Format AI Results').item.json.missing }}"
+        }
+      },
+      "type": "n8n-nodes-base.salesforce",
+      "typeVersion": 1,
+      "position": [
+        4640,
+        960
+      ],
+      "id": "419fa5cb-ed06-4d92-8ae4-f38d5062166f",
+      "name": "Flag Audit Discrepancy",
+      "credentials": {
+        "salesforceOAuth2Api": {
+          "id": "sC9c1n9XqdOH5TdT",
+          "name": "Salesforce account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "content": "\n\n# Multi-System Revenue Leakage Detector\n### This workflow automatically detects revenue leakage by comparing expected revenue from Salesforce with actual billed data from Google Sheets. Once Closed Won deals are fetched, the workflow processes each deal, calculates the revenue gap, and uses Google Gemini AI to analyze the discrepancy. It classifies severity, identifies the root cause, and suggests actions. If a valid gap exists, the workflow sends a real-time alert via Slack and updates the deal record in Salesforce with an audit note. This ensures finance and operations teams can quickly detect, investigate, and resolve missing revenue without manual effort.\n\n# Setup Steps\n\n## Connect Accounts in n8n\nAdd credentials for Salesforce, Google Sheets, Google Gemini, and Slack.\n\n## Add Trigger\nStart the workflow manually or schedule it to run at regular intervals (e.g., daily).\n\n## Fetch Closed Won Deals\nUse Salesforce node to retrieve opportunities where StageName is Closed Won.\n\n## Add Batch Processing & Delay\nUse Split in Batches and Wait node to process deals gradually and avoid API limits.\n\n## Lookup Billing Data\nFetch corresponding billing records from Google Sheets using Deal ID or Account ID.\n\n## Compare Revenue Data\nCalculate expected vs actual revenue and determine the missing amount.\n\n## Add AI Analysis\nUse Google Gemini to analyze the revenue gap and generate severity, root cause, recommendation, and audit note.\n\n## Parse AI Output\nConvert the AI response into structured JSON format for further processing.\n\n## Validate Revenue Gap\nUse an IF condition to continue only if the missing revenue is greater than zero.\n\n## Prepare Alert Message\nFormat a detailed Slack message including deal name, gap, severity, and recommendations.\n\n## Send Slack Notification\nNotify the team via Slack with revenue leakage details.\n\n## Update Salesforce Record\nUpdate the opportunity description in Salesforce with audit notes and discrepancy details.\n\n## Loop Through Records\nContinue processing all deals until the workflow is complete.",
+        "height": 1424,
+        "width": 1248
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        0,
+        0
+      ],
+      "typeVersion": 1,
+      "id": "dbea0134-59fe-4bf5-9ee7-01ceec6fae42",
+      "name": "Sticky Note"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "1",
+              "name": "opportunityId",
+              "value": "={{ $(\"Compare Revenue Totals\").item.json.opportunityId }}",
+              "type": "string"
+            },
+            {
+              "id": "2",
+              "name": "dealId",
+              "value": "={{ $(\"Compare Revenue Totals\").item.json.dealId }}",
+              "type": "string"
+            },
+            {
+              "id": "3",
+              "name": "dealName",
+              "value": "={{ $(\"Compare Revenue Totals\").item.json.dealName }}",
+              "type": "string"
+            },
+            {
+              "id": "4",
+              "name": "stageName",
+              "value": "={{ $(\"Compare Revenue Totals\").item.json.stageName }}",
+              "type": "string"
+            },
+            {
+              "id": "5",
+              "name": "severity",
+              "value": "={{ JSON.parse($json.content.parts[0].text || \"{}\").severity }}",
+              "type": "string"
+            },
+            {
+              "id": "6",
+              "name": "rootCause",
+              "value": "={{ JSON.parse($json.content.parts[0].text || \"{}\").rootCause }}",
+              "type": "string"
+            },
+            {
+              "id": "7",
+              "name": "recommendation",
+              "value": "={{ JSON.parse($json.content.parts[0].text || \"{}\").recommendation }}",
+              "type": "string"
+            },
+            {
+              "id": "8",
+              "name": "auditNote",
+              "value": "={{ JSON.parse($json.content.parts[0].text || \"{}\").auditNote }}",
+              "type": "string"
+            },
+            {
+              "id": "9",
+              "name": "expected",
+              "value": "={{ $(\"Compare Revenue Totals\").item.json.expected }}",
+              "type": "number"
+            },
+            {
+              "id": "10",
+              "name": "actual",
+              "value": "={{ $(\"Compare Revenue Totals\").item.json.actual }}",
+              "type": "number"
+            },
+            {
+              "id": "11",
+              "name": "missing",
+              "value": "={{ $(\"Compare Revenue Totals\").item.json.missing }}",
+              "type": "number"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        3456,
+        960
+      ],
+      "id": "98b6cee8-4dde-4082-abf3-6d31a360167e",
+      "name": "Format AI Results"
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        1520,
+        976
+      ],
+      "id": "20d79859-bf38-4fb3-afb0-e9b3e4c46667",
+      "name": "Start Manual Revenue Audit"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Inconsistency Found?1": {
+      "main": [
+        [
+          {
+            "node": "Prepare Slack Message",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Iterate Opportunities",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Analyze Revenue Gap": {
+      "main": [
+        [
+          {
+            "node": "Format AI Results",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch Salesforce Opportunities": {
+      "main": [
+        [
+          {
+            "node": "Iterate Opportunities",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Iterate Opportunities": {
+      "main": [
+        [],
+        [
+          {
+            "node": "API Rate Limit Delay",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "API Rate Limit Delay": {
+      "main": [
+        [
+          {
+            "node": "Lookup Billing Record",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Lookup Billing Record": {
+      "main": [
+        [
+          {
+            "node": "Compare Revenue Totals",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Compare Revenue Totals": {
+      "main": [
+        [
+          {
+            "node": "Analyze Revenue Gap",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Slack Message": {
+      "main": [
+        [
+          {
+            "node": "Alert Revenue Gap",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Alert Revenue Gap": {
+      "main": [
+        [
+          {
+            "node": "Flag Audit Discrepancy",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Flag Audit Discrepancy": {
+      "main": [
+        [
+          {
+            "node": "Iterate Opportunities",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format AI Results": {
+      "main": [
+        [
+          {
+            "node": "Inconsistency Found?1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Start Manual Revenue Audit": {
+      "main": [
+        [
+          {
+            "node": "Fetch Salesforce Opportunities",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "versionId": "1fe337c8-b4ca-440d-b1bc-810c45bbd2ef",
+  "meta": {
+    "instanceId": "f27739ea7ff3a87f7bf9c66c729159b4bef14582f083ae2ee9bbd27cecc68161"
+  },
+  "id": "jiwwe2cKLrkjeWWE",
+  "tags": []
+}

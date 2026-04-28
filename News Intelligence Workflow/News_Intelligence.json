@@ -1,0 +1,1007 @@
+{
+  "nodes": [
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [
+        4976,
+        2480
+      ],
+      "id": "3bcb6897-6b09-4ecd-87ce-f85a0652059c",
+      "name": " Loop Articles (Batch Size: 1)"
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        2960,
+        2592
+      ],
+      "id": "199903ca-2eef-4326-804a-7a3de5b44311",
+      "name": "Run Workflow Manually"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "cfg-001",
+              "name": "config.newsApiKey",
+              "value": "",
+              "type": "string"
+            },
+            {
+              "id": "cfg-002",
+              "name": "config.searchQuery",
+              "value": "regulation",
+              "type": "string"
+            },
+            {
+              "id": "cfg-003",
+              "name": "config.sortBy",
+              "value": "publishedAt",
+              "type": "string"
+            },
+            {
+              "id": "cfg-004",
+              "name": "config.maxArticlesToFetch",
+              "value": 3,
+              "type": "number"
+            },
+            {
+              "id": "cfg-005",
+              "name": "config.loopWaitSeconds",
+              "value": 5,
+              "type": "number"
+            },
+            {
+              "id": "cfg-006",
+              "name": "config.googleSheetId",
+              "value": "1FdbDRiWGAUqnDY9K4DL8dIh1VJ65wNlabrM7kKnejFc",
+              "type": "string"
+            },
+            {
+              "id": "cfg-007",
+              "name": "config.sheetName",
+              "value": "Sheet1",
+              "type": "string"
+            },
+            {
+              "id": "cfg-008",
+              "name": "config.alertEmailTo",
+              "value": "vishakag21@gmail.com",
+              "type": "string"
+            },
+            {
+              "id": "cfg-009",
+              "name": "config.newsApiBaseUrl",
+              "value": "https://newsapi.org/v2/everything",
+              "type": "string"
+            },
+            {
+              "id": "cfg-010",
+              "name": "config.geminiModel",
+              "value": "models/gemini-2.5-flash",
+              "type": "string"
+            },
+            {
+              "id": "cfg-011",
+              "name": "config.apiRequestTimeoutMs",
+              "value": 15000,
+              "type": "number"
+            },
+            {
+              "id": "cfg-012",
+              "name": "config.userAgent",
+              "value": "n8n-news-intelligence/2.0",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        3184,
+        2592
+      ],
+      "id": "ce12672c-04f4-48bd-9df0-4ab31e80521c",
+      "name": "Workflow Config & Variables"
+    },
+    {
+      "parameters": {
+        "url": "={{ $json.config.newsApiBaseUrl }}",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "q",
+              "value": "={{ $json.config.searchQuery }}"
+            },
+            {
+              "name": "sortBy",
+              "value": "={{ $json.config.sortBy }}"
+            },
+            {
+              "name": "apiKey",
+              "value": "={{ $json.config.newsApiKey }}"
+            }
+          ]
+        },
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Accept",
+              "value": "application/json"
+            },
+            {
+              "name": "User-Agent",
+              "value": "={{ $json.config.userAgent }}"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 15000
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        3408,
+        2592
+      ],
+      "id": "f0165233-7f13-45b6-b83f-54e4590b04fb",
+      "name": "Fetch News from NewsAPI",
+      "retryOnFail": true,
+      "waitBetweenTries": 5000,
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "language": "pythonNative",
+        "pythonCode": "result = []\n\nfor item in _items:\n    articles = item[\"json\"].get(\"articles\", [])\n    \n    articles = sorted(\n        articles,\n        key=lambda x: x.get(\"publishedAt\", \"\"),\n        reverse=True\n    )\n\n    max_articles = 3\n    top_articles = articles[:max_articles]\n\n    for article in top_articles:\n        if article.get(\"title\") in [None, \"[Removed]\"]:\n            continue\n        result.append({\n            \"json\": {\n                \"title\": article.get(\"title\"),\n                \"description\": article.get(\"description\"),\n                \"source\": article.get(\"source\", {}).get(\"name\", \"Unknown\"),\n                \"author\": article.get(\"author\"),\n                \"publishedAt\": article.get(\"publishedAt\"),\n                \"url\": article.get(\"url\"),\n                \"content\": article.get(\"content\") or article.get(\"description\") or \"\"\n            }\n        })\n\nreturn result"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3648,
+        2448
+      ],
+      "id": "e72de55e-8015-45d9-9621-c5bf2483f9d4",
+      "name": "Preprocess & Normalize Articles"
+    },
+    {
+      "parameters": {
+        "maxItems": "={{ $('Workflow Config & Variables').item.json.config.maxArticlesToFetch }}"
+      },
+      "type": "n8n-nodes-base.limit",
+      "typeVersion": 1,
+      "position": [
+        3920,
+        2448
+      ],
+      "id": "5e072bcd-7ac0-42fd-871f-d8aa1926dab8",
+      "name": "Limit to Top N Articles"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "filter-url",
+              "leftValue": "={{ $json[\"Title \"] }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "notEmpty"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        4432,
+        2432
+      ],
+      "id": "dcb075e0-3ddc-4ab0-b8f2-917a3cce122a",
+      "name": "Filter Valid Articles Only"
+    },
+    {
+      "parameters": {
+        "amount": "={{ $('Workflow Config & Variables').item.json.config.loopWaitSeconds }}"
+      },
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        5200,
+        2496
+      ],
+      "id": "125b3188-74a5-4449-8e59-5376cb9b0c3f",
+      "name": "Cooldown Between Articles",
+      "webhookId": "cooldown-wait-001"
+    },
+    {
+      "parameters": {
+        "modelId": {
+          "__rl": true,
+          "value": "models/gemini-2.5-flash",
+          "mode": "list",
+          "cachedResultName": "models/gemini-2.5-flash"
+        },
+        "messages": {
+          "values": [
+            {
+              "content": "=You are a regulatory news analyst.\n\nArticle Title: {{ $json['Title '] }}\nSource: {{ $json.Source }}\n\nArticle Content: {{ $json.Content }}\nPublished At: {{ $json.Published_At }}\n\nTask:\nAnalyze the article and produce clearly separate sections as follows:\n1. Summary\n2. Key Changes\n\nInstructions:\n\nSUMMARY:\n- Write a concise summary (maximum 60 words)\n- Include only key factual information\n- Focus on regulatory, legal, or policy-related aspects\n- Do NOT include bullet points\n- Do NOT list rules or changes here\n\nKEY CHANGES:\n- List ONLY specific regulatory, legal, or policy updates\n- Use bullet points\n- Each point must be short and clear\n- Do NOT include explanations or extra text\n- If no regulatory changes exist, write: None\n\nIMPORTANT RULES:\n- DO NOT mix Summary and Key Changes\n- DO NOT repeat the same information in both sections\n- Keep both sections completely separate\n\nOutput Format (STRICT):\n\nSummary:\n<concise summary>\n\nKey Changes:\n- <regulatory change 1>\n- <regulatory change 2>"
+            }
+          ]
+        },
+        "builtInTools": {},
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.googleGemini",
+      "typeVersion": 1.1,
+      "position": [
+        5472,
+        2496
+      ],
+      "id": "17473974-640f-4681-ac33-ad8ef1731af4",
+      "name": "Generate Summary & Key Changes (AI)",
+      "credentials": {
+        "googlePalmApi": {
+          "id": "qb3j6Ye9x3sQABir",
+          "name": "new_acc"
+        }
+      },
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "const result = [];\n\nfor (const item of $input.all()) {\n  const change = item.json;\n\n  const rawOutput = change.content?.parts?.[0]?.text || \"\";\n\n  let summary = \"No summary generated\";\n  if (rawOutput.includes(\"Summary:\") && rawOutput.includes(\"Key Changes:\")) {\n    summary = rawOutput.split(\"Summary:\")[1].split(\"Key Changes:\")[0].trim();\n  } else if (rawOutput) {\n    summary = rawOutput.trim();\n  }\n\n  let keyChanges = \"None\";\n  if (rawOutput.includes(\"Key Changes:\")) {\n    const keyPart = rawOutput.split(\"Key Changes:\")[1].trim();\n    const lines = keyPart.split(\"\\n\");\n    const extractedKeyChanges = [];\n    for (let line of lines) {\n      line = line.trim().replace(/^[-*•]\\s*/, \"\");\n      if (line && line.toLowerCase() !== \"none\") {\n        extractedKeyChanges.push(line);\n      }\n    }\n    keyChanges = extractedKeyChanges.length > 0 ? extractedKeyChanges.join(\" | \") : \"None\";\n  }\n\n  result.push({\n    json: {\n      Title: change.title,\n      Source: typeof change.source === \"object\" ? change.source.name : (change.source || \"Unknown\"),\n      Published_At: change.publishedAt,\n      URL: change.url,\n      Content: change.content || change.description || \"\",\n      Summary: summary,\n      \"Key Changes\": keyChanges\n    }\n  });\n}\n\nreturn result;"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        5872,
+        2480
+      ],
+      "id": "b161c607-87ef-485d-b4de-7310abedda60",
+      "name": "Format & Structure AI Output"
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "documentId": {
+          "__rl": true,
+          "value": "={{ $('Workflow Config & Variables').item.json.config.googleSheetId }}",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "gid=0",
+          "mode": "list",
+          "cachedResultName": "Sheet1",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1FdbDRiWGAUqnDY9K4DL8dIh1VJ65wNlabrM7kKnejFc/edit#gid=0"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "Title ": "={{ $(' Loop Articles (Batch Size: 1)').item.json[\"Title \"] }}",
+            "Summary": "={{ $json.Summary }}",
+            "Key changes": "={{ $json[\"Key Changes\"] }}",
+            "row_number": 0
+          },
+          "matchingColumns": [
+            "Title "
+          ],
+          "schema": [
+            {
+              "id": "Title ",
+              "displayName": "Title ",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "Source",
+              "displayName": "Source",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "Published_At",
+              "displayName": "Published_At",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "Content",
+              "displayName": "Content",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "Summary",
+              "displayName": "Summary",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Key changes",
+              "displayName": "Key changes",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Key Changes",
+              "displayName": "Key Changes",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "row_number",
+              "displayName": "row_number",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": true,
+              "readOnly": true,
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        6080,
+        2480
+      ],
+      "id": "234b1fa3-be82-4746-8bf2-3d4e570a26ef",
+      "name": "Update Sheet with AI Results",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "RuID1Add5iZgOpU7",
+          "name": "sample account"
+        }
+      },
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "value": "={{ $('Workflow Config & Variables').item.json.config.googleSheetId }}",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "gid=0",
+          "mode": "list",
+          "cachedResultName": "Sheet1",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1FdbDRiWGAUqnDY9K4DL8dIh1VJ65wNlabrM7kKnejFc/edit#gid=0"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "Title ": "={{ $json.title }}",
+            "Source": "={{ $json.source }}",
+            "Published_At": "={{ $json.publishedAt }}",
+            "Content": "={{ $json.content }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "Title ",
+              "displayName": "Title ",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Source",
+              "displayName": "Source",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Published_At",
+              "displayName": "Published_At",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Content",
+              "displayName": "Content",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Summary",
+              "displayName": "Summary",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Key changes",
+              "displayName": "Key changes",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        4528,
+        2896
+      ],
+      "id": "228ec663-941e-49ee-99f1-74b6c8566ffb",
+      "name": "Store Raw Articles to Sheet",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "WmLu1rigLzdtmLos",
+          "name": "Google Sheets OAuth2 API"
+        }
+      },
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "amount": 2
+      },
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        4272,
+        2912
+      ],
+      "id": "12f60a87-14b8-47b4-83af-4eea4ded3194",
+      "name": "Wait Before Storing",
+      "webhookId": "bf66604f-611b-4496-95ac-fdf0b9468fb4"
+    },
+    {
+      "parameters": {
+        "numberInputs": 4
+      },
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3.2,
+      "position": [
+        5712,
+        3200
+      ],
+      "id": "fb94cd4e-5eee-40d1-9085-98c5bea6da41",
+      "name": "Collect All Errors",
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "err-001",
+              "name": "error.nodeName",
+              "value": "={{ $json.node?.name ?? 'Unknown Node' }}",
+              "type": "string"
+            },
+            {
+              "id": "err-002",
+              "name": "error.message",
+              "value": "={{ (() => { const rawMsg = $json.error?.message ?? 'No error message available'; try { const match = rawMsg.match(/\"message\":\"([^\"]+)\"/); return match ? match[1].replace(/\\\\/g, '') : rawMsg; } catch(e) { return rawMsg; } })() }}",
+              "type": "string"
+            },
+            {
+              "id": "err-003",
+              "name": "error.timestamp",
+              "value": "={{ $now }}",
+              "type": "string"
+            },
+            {
+              "id": "err-004",
+              "name": "error.rawPayload",
+              "value": "={{ JSON.stringify($json, null, 2) }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        5920,
+        3232
+      ],
+      "id": "52c8a40c-8ba8-4dc4-9813-1db00c56a762",
+      "name": "Format Error Details"
+    },
+    {
+      "parameters": {
+        "amount": 3
+      },
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        6144,
+        3232
+      ],
+      "id": "b17753c0-0596-4ad3-b790-99e68fead823",
+      "name": "Error Alert Delay",
+      "webhookId": "error-wait-001"
+    },
+    {
+      "parameters": {
+        "content": "# News Intelligence Workflow\n\n# How It Work\n\n### This workflow automatically fetches the latest news articles from an external API and transforms them into structured, AI-powered insights. Once triggered, it retrieves news based on a defined query, cleans and filters the data, and selects the most relevant articles.Each article is processed individually using a batch loop to ensure controlled execution and avoid API limits. The workflow stores raw article data in Google Sheets, then uses an AI model to generate a concise summary and key regulatory changes.The AI output is formatted into a structured format and updated back into Google Sheets for tracking and analysis. Additionally, the workflow includes error handling, where failures from different nodes are collected, formatted, and delayed for monitoring. This ensures a reliable and scalable news intelligence system.\n\n# Setup Steps\n\n## Prepare Google Sheets\nCreate columns: Title, Source, Published Date, Content, Summary, Key Changes.\n\n## Configure Variables\nSet values like API key, query, article limit, delay time, and Sheet ID.\n\n## Add Trigger\nUse a Manual Trigger for testing.\n\n## Fetch & Process Data\nHTTP Request to fetch news, Code Node to clean and filter data, Limit Node to restrict articles.\n\n## Store & Loop\nSave raw data to Google Sheets, process using SplitInBatches and Wait, generate AI insights\n\n## Use AI (Gemini/OpenAI) to create:\nGenerate summary and key regulatory changes, format and update output, clean and structure data using Code node, update summary and key changes in Google Sheets.\n\n## Error Handling\nMerge to collect errors, Set to format details, Wait to delay alerts.",
+        "height": 1008,
+        "width": 1488
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        1264,
+        1712
+      ],
+      "typeVersion": 1,
+      "id": "4414a2be-7e85-49f4-b1ce-92cd719e1eeb",
+      "name": "Sticky Note1"
+    },
+    {
+      "parameters": {
+        "content": "## Configuration & Data Fetching\nCentralizes API keys, query, and limits in one place for easy control. Fetches latest news articles from NewsAPI using defined parameters like keyword and sorting.",
+        "height": 368,
+        "width": 640,
+        "color": 7
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        2896,
+        2432
+      ],
+      "typeVersion": 1,
+      "id": "bc433c78-3e92-4658-9302-07112002e001",
+      "name": "Sticky Note"
+    },
+    {
+      "parameters": {
+        "content": "## Data Processing\nCleans, sorts, and structures raw articles into a consistent format for further processing.",
+        "height": 400,
+        "color": 7
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        3584,
+        2272
+      ],
+      "typeVersion": 1,
+      "id": "3e628b81-20ec-4cd0-8f5d-bb4ce728c420",
+      "name": "Sticky Note2"
+    },
+    {
+      "parameters": {
+        "content": "## Control & Batching\nLimits number of articles and processes them one by one using batch loop for efficiency and control.",
+        "height": 400,
+        "width": 816,
+        "color": 7
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        3840,
+        2272
+      ],
+      "typeVersion": 1,
+      "id": "e3366b8b-d5eb-4d57-8c92-42548b0a6f64",
+      "name": "Sticky Note3"
+    },
+    {
+      "parameters": {
+        "content": "## AI Processing\nGenerates concise summary and extracts key regulatory changes using AI model.",
+        "height": 432,
+        "width": 336,
+        "color": 7
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        5424,
+        2288
+      ],
+      "typeVersion": 1,
+      "id": "f51aed52-71f9-4ba6-956d-21e2efb9de5c",
+      "name": "Sticky Note5"
+    },
+    {
+      "parameters": {
+        "content": "## Formatting & Storage\nStructures AI output and stores both raw and processed data into Google Sheets.",
+        "height": 432,
+        "width": 448,
+        "color": 7
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        5824,
+        2288
+      ],
+      "typeVersion": 1,
+      "id": "dd984836-0401-45a6-b71e-874cec3754cc",
+      "name": "Sticky Note6"
+    },
+    {
+      "parameters": {
+        "content": "## Error Handling\nCollects, formats, and delays error reporting for centralized monitoring and debugging. and send the format message via email.",
+        "height": 336,
+        "width": 944,
+        "color": 7
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        5648,
+        3088
+      ],
+      "typeVersion": 1,
+      "id": "5badf7a1-cc2f-4ef3-bab5-015860d6f494",
+      "name": "Sticky Note7"
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [
+        4144,
+        2448
+      ],
+      "id": "1be2d547-392e-4257-8d88-34f99558e13a",
+      "name": "Loop Store Each Article"
+    },
+    {
+      "parameters": {
+        "content": "## Validation & Rate Limiting\nFilters valid articles and adds delay between processing to avoid API limits and ensure stability.",
+        "height": 416,
+        "width": 464,
+        "color": 7
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        4896,
+        2272
+      ],
+      "typeVersion": 1,
+      "id": "36e17407-c5e8-44d0-8f1b-2095e8bc85d0",
+      "name": "Sticky Note8"
+    },
+    {
+      "parameters": {
+        "content": "## Store Raw Articles\nSaves original article data into Google Sheets for backup, tracking, and reference.",
+        "height": 400,
+        "width": 288,
+        "color": 7
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        4464,
+        2688
+      ],
+      "typeVersion": 1,
+      "id": "b0b38b92-f0a7-4615-b6f6-fa8ea80607a6",
+      "name": "Sticky Note9"
+    },
+    {
+      "parameters": {
+        "sendTo": "vishakag21@gmail.com",
+        "subject": "=News Intelligence Workflow Error ",
+        "message": "=<!DOCTYPE html>\n<html>\n<head>\n  <style>\n    body {\n      font-family: Arial, sans-serif;\n      background-color: #f4f4f4;\n      padding: 20px;\n    }\n    .container {\n      background-color: white;\n      padding: 30px;\n      border-radius: 8px;\n      box-shadow: 0 2px 4px rgba(0,0,0,0.1);\n      max-width: 600px;\n      margin: auto;\n    }\n    h2 {\n      color: #d32f2f;\n      margin-top: 0;\n    }\n    .error-box {\n      background-color: #ffe6e6;\n      border-left: 4px solid #d32f2f;\n      padding: 15px;\n      margin: 20px 0;\n      border-radius: 4px;\n    }\n    .error-message {\n      color: #c62828;\n      font-size: 16px;\n      line-height: 1.6;\n    }\n    .timestamp {\n      color: #666;\n      font-size: 14px;\n      margin-top: 15px;\n    }\n    .footer {\n      margin-top: 30px;\n      padding-top: 20px;\n      border-top: 1px solid #e0e0e0;\n      color: #666;\n      font-size: 13px;\n    }\n  </style>\n</head>\n\n<body>\n  <div class=\"container\">\n    <h2> News Intelligence Workflow Error</h2>\n\n    <div class=\"error-box\">\n      <div class=\"error-message\">\n      {{ $json.error.message }}\n      </div>\n    </div>\n\n    <div class=\"timestamp\">\n      <strong>Time:</strong> {{ $json.error.timestamp }}\n    </div>\n\n    <div class=\"footer\">\n      Please check your n8n execution log for full details.\n    </div>\n  </div>\n</body>\n</html>",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.2,
+      "position": [
+        6368,
+        3232
+      ],
+      "id": "6ab04e70-2372-4f34-a560-65bdf7e9f76b",
+      "name": "Email Error Alert",
+      "webhookId": "cf21e279-940b-4b59-a74f-d628a99aaf81",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "9BcoeM3ZeEh4rWuy",
+          "name": "Gmail OAuth2 API"
+        }
+      }
+    }
+  ],
+  "connections": {
+    " Loop Articles (Batch Size: 1)": {
+      "main": [
+        [],
+        [
+          {
+            "node": "Cooldown Between Articles",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Run Workflow Manually": {
+      "main": [
+        [
+          {
+            "node": "Workflow Config & Variables",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Workflow Config & Variables": {
+      "main": [
+        [
+          {
+            "node": "Fetch News from NewsAPI",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch News from NewsAPI": {
+      "main": [
+        [
+          {
+            "node": "Preprocess & Normalize Articles",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Collect All Errors",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Preprocess & Normalize Articles": {
+      "main": [
+        [
+          {
+            "node": "Limit to Top N Articles",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Limit to Top N Articles": {
+      "main": [
+        [
+          {
+            "node": "Loop Store Each Article",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Filter Valid Articles Only": {
+      "main": [
+        [
+          {
+            "node": " Loop Articles (Batch Size: 1)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Cooldown Between Articles": {
+      "main": [
+        [
+          {
+            "node": "Generate Summary & Key Changes (AI)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Generate Summary & Key Changes (AI)": {
+      "main": [
+        [
+          {
+            "node": "Format & Structure AI Output",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Collect All Errors",
+            "type": "main",
+            "index": 2
+          }
+        ]
+      ]
+    },
+    "Format & Structure AI Output": {
+      "main": [
+        [
+          {
+            "node": "Update Sheet with AI Results",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Update Sheet with AI Results": {
+      "main": [
+        [
+          {
+            "node": " Loop Articles (Batch Size: 1)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Collect All Errors",
+            "type": "main",
+            "index": 3
+          }
+        ]
+      ]
+    },
+    "Store Raw Articles to Sheet": {
+      "main": [
+        [
+          {
+            "node": "Loop Store Each Article",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Collect All Errors",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Wait Before Storing": {
+      "main": [
+        [
+          {
+            "node": "Store Raw Articles to Sheet",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Collect All Errors": {
+      "main": [
+        [
+          {
+            "node": "Format Error Details",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format Error Details": {
+      "main": [
+        [
+          {
+            "node": "Error Alert Delay",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Error Alert Delay": {
+      "main": [
+        [
+          {
+            "node": "Email Error Alert",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Loop Store Each Article": {
+      "main": [
+        [
+          {
+            "node": "Filter Valid Articles Only",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Wait Before Storing",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "f27739ea7ff3a87f7bf9c66c729159b4bef14582f083ae2ee9bbd27cecc68161"
+  }
+}

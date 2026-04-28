@@ -1,0 +1,660 @@
+{
+  "name": "Gold-Silver Ratio Tracker with Opportunity Alerts",
+  "nodes": [
+    {
+      "parameters": {
+        "url": "=https://www.goldapi.io/api/XAG/{{$('Set Global Config').item.json.currency}}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "x-access-token",
+              "value": "={{$('Set Global Config').item.json.goldApiKey}}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        1632,
+        800
+      ],
+      "id": "c1bd7fcd-db18-4d68-b684-9b7b72a2d9cd",
+      "name": "Fetch Silver Price (XAG)"
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3.2,
+      "position": [
+        2304,
+        496
+      ],
+      "id": "390d9b59-52bc-4595-9155-e5b882888132",
+      "name": "Merge Gold & Silver Responses"
+    },
+    {
+      "parameters": {
+        "language": "pythonNative",
+        "pythonCode": "# Extract prices from the input items\ngold = _items[0][\"json\"].get(\"goldPrice\")\nsilver = _items[1][\"json\"].get(\"silverPrice\")\n\n# Calculate the ratio\nif gold and silver:\n    ratio = round(gold / silver, 2)\nelse:\n    ratio = 0\n\n# Return the data in n8n's required format\nreturn [\n    {\n        \"json\": {\n            \"goldPrice\": gold,\n            \"silverPrice\": silver,\n            \"ratio\": ratio\n        }\n    }\n]"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2496,
+        496
+      ],
+      "id": "dce8d5d9-ba5c-4319-be78-19dd1a8a17a8",
+      "name": "Calculate Gold-Silver Ratio"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "cond-buy-silver",
+              "leftValue": "={{$json.ratio}}",
+              "rightValue": "={{$('Set Global Config').item.json.buySilverThreshold}}",
+              "operator": {
+                "type": "number",
+                "operation": "gt"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "looseTypeValidation": true,
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        2976,
+        496
+      ],
+      "id": "a4d972f0-57c1-49e8-84bf-ab03aa0adddb",
+      "name": "Ratio > BuySilver Threshold?"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "cond-buy-gold",
+              "leftValue": "={{$json.ratio}}",
+              "rightValue": "={{$('Set Global Config').item.json.buyGoldThreshold}}",
+              "operator": {
+                "type": "number",
+                "operation": "lt"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "looseTypeValidation": true,
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        3440,
+        880
+      ],
+      "id": "ad8d3110-f345-408d-ba43-b2efbf28c0e4",
+      "name": "Ratio < BuyGold Threshold?"
+    },
+    {
+      "parameters": {
+        "mode": "raw",
+        "jsonOutput": "{\n  \"signalType\": \"hold\"\n}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        4016,
+        944
+      ],
+      "id": "a72e7522-704c-4b2a-b65f-78a374ef7e87",
+      "name": "Signal — HOLD"
+    },
+    {
+      "parameters": {
+        "mode": "raw",
+        "jsonOutput": "{\n  \"signalType\": \"silver\"\n}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        4016,
+        480
+      ],
+      "id": "4e5bccdb-6c1a-44e3-af6c-c7c855751115",
+      "name": "Signal — BUY SILVER"
+    },
+    {
+      "parameters": {
+        "mode": "raw",
+        "jsonOutput": "{\n  \"signalType\": \"gold\"\n}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        4016,
+        688
+      ],
+      "id": "1db5e3f4-4630-4e67-ab66-36ce5ee5abad",
+      "name": "Signal — BUY GOLD"
+    },
+    {
+      "parameters": {
+        "numberInputs": 3
+      },
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3.2,
+      "position": [
+        4576,
+        624
+      ],
+      "id": "46653d72-3cd2-49d4-bc92-81a731668166",
+      "name": "Merge All Signal Branches"
+    },
+    {
+      "parameters": {
+        "jsCode": "const SIGNAL_CONFIG = {\n  silver: {\n    signal: \" OPPORTUNITY: ACCUMULATE SILVER\",\n    insight: \"Silver is historically undervalued relative to Gold based on current ratio levels.\",\n    interpretation:\n      \"The Gold-Silver ratio has exceeded the upper historical threshold, indicating that silver is trading at a significant discount relative to gold on a relative-value basis. Historically, elevated ratios have preceded silver outperformance. This signal suggests a potential accumulation opportunity in silver for investors with a medium-to-long-term horizon.\"\n  },\n  gold: {\n    signal: \" OPPORTUNITY: ACCUMULATE GOLD\",\n    insight: \"Gold is historically undervalued relative to Silver based on current ratio levels.\",\n    interpretation:\n      \"The Gold-Silver ratio has fallen below the lower historical threshold, indicating that gold is trading at a relative discount to silver. A compressed ratio has historically been associated with gold outperformance in subsequent periods. This signal suggests a potential accumulation opportunity in gold for risk-conscious investors.\"\n  },\n  hold: {\n    signal: \" NEUTRAL: HOLD — NO ACTION REQUIRED\",\n    insight: \"The Gold-Silver ratio is within the normal historical range. No relative-value opportunity is identified.\",\n    interpretation:\n      \"The Gold-Silver ratio is currently trading within its established historical band, suggesting no material mispricing between the two metals at this time. Investors are advised to maintain existing positions and continue monitoring for ratio breakouts above or below the configured thresholds.\"\n  }\n};\n\nconst newItems = [];\n\nfor (const item of $input.all()) {\n  const type = item.json.signalType;\n  const key = [\"silver\", \"gold\"].includes(type) ? type : \"hold\";\n  const config = SIGNAL_CONFIG[key];\n\n  newItems.push({\n    json: {\n      signal: config.signal,\n      insight: config.insight,\n      interpretation: config.interpretation,\n      generatedAt: new Date().toISOString()\n    }\n  });\n}\n\nreturn newItems;"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        4832,
+        640
+      ],
+      "id": "b438b2a6-8688-48c9-baea-5738f1ff3fd3",
+      "name": "Format Final Alert Output"
+    },
+    {
+      "parameters": {
+        "sendTo": "={{$('Set Global Config').item.json.alertEmail}}",
+        "subject": "= Gold-Silver Ratio Alert | {{$json.signal}} | Ratio:{{ $('Calculate Gold-Silver Ratio').item.json.ratio }}",
+        "emailType": "text",
+        "message": "=Dear Investor,\n\nPlease find below the latest automated analysis from the Gold-Silver Ratio Monitoring System.\n\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n  MARKET DATA SUMMARY\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n  Gold Price (INR)     :  {{ $('Ratio > BuySilver Threshold?').item.json.goldPrice }}\n  Silver Price (INR)   :  {{ $('Ratio > BuySilver Threshold?').item.json.silverPrice }}\n  Gold-Silver Ratio    :   {{ $('Ratio > BuySilver Threshold?').item.json.ratio }}\n  \n\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n  SIGNAL & ANALYSIS\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n  Signal               :  {{$json.signal}}\n  Insight              :  {{$json.insight}}\n\n  Interpretation:\n  {{$json.interpretation}}\n\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n  THRESHOLD REFERENCE\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n  Buy Silver Threshold :  Ratio > 80  →  Silver undervalued\n  Buy Gold Threshold   :  Ratio < 60  →  Gold undervalued\n  Neutral Zone         :  60 ≤ Ratio ≤ 80  →  No action\n\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n  DISCLAIMER\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n  This report is generated automatically by the Gold-Silver Ratio\n  Monitoring System and is intended solely for informational purposes.\n  \n  The signals and analysis presented herein are based on pre-configured\n  quantitative thresholds and do NOT constitute financial advice,\n  investment recommendations, or an offer to buy or sell any security\n  or commodity.\n\n  Past ratio patterns are not indicative of future performance.\n  Always conduct your own due diligence and consult a SEBI-registered\n  financial advisor before making any investment decision.\n\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\nThis is a system-generated communication. Please do not reply to this email.\n\nRegards,\nGold-Silver Ratio Monitoring System\nAutomated Market Intelligence | Powered by GoldAPI.io",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.2,
+      "position": [
+        5072,
+        640
+      ],
+      "id": "9befa3c0-b2a6-48e3-a9ad-960f93d48f25",
+      "name": "Send Alert Email",
+      "webhookId": "3cb162a5-655c-4288-a289-2e07706654de",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "9BcoeM3ZeEh4rWuy",
+          "name": "Gmail OAuth2 API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "content": "# Gold-Silver Ratio Tracker with Opportunity Alerts\n### This workflow monitors gold and silver prices in real-time, calculates the Gold-Silver ratio, and generates automated investment signals. It fetches live prices from GoldAPI, computes the ratio, and evaluates it against predefined thresholds to determine whether gold or silver is undervalued. Based on this analysis, it generates a structured signal (Buy Gold, Buy Silver, or Hold) along with detailed insights and interpretation. Finally, it sends a formatted email alert with market data, signal explanation, and reference thresholds to the configured recipient.\n\n# Setup Steps\n\n## Configure Master Node\nSet up the Configuration node with your GoldAPI key, alert email, currency, and threshold values for buy signals.\n\n## Connect API Access\nEnsure your GoldAPI key is valid and added correctly in the Configuration node for both gold (XAU) and silver (XAG) requests.\n\n## Add Trigger\nUse the Manual Trigger for testing or replace it with a Cron node for automated periodic execution.\n\n## Fetch Market Data\nUse HTTP Request nodes to fetch real-time gold and silver prices from GoldAPI.\n\n## Format Price Data\nMap the API response to extract goldPrice and silverPrice fields for further processing.\n\n## Merge & Calculate Ratio\nMerge both price streams and calculate the Gold-Silver ratio using a Code node.\n\n## Apply Signal Logic\nUse IF nodes to compare the ratio against thresholds:\n- Ratio > threshold → Buy Silver  \n- Ratio < threshold → Buy Gold  \n- Otherwise → Hold  \n\n## Generate Signal Output\nAssign signal type and enrich it with insight and interpretation using a Code node.\n\n## Send Email Alert\nUse the Gmail node to send a detailed alert including prices, ratio, signal, and analysis.\n\n## Monitor & Adjust\nTrack signals over time and adjust thresholds in the Configuration node as needed.",
+        "height": 1008,
+        "width": 896
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        0,
+        0
+      ],
+      "typeVersion": 1,
+      "id": "67b59ec7-7307-4d0d-bc8f-06767f6976c5",
+      "name": "Sticky Note"
+    },
+    {
+      "parameters": {
+        "content": "## Trigger & Configuration\n\nInitializes the workflow and sets required variables like API key, thresholds, currency, and email.\nEnsures all downstream nodes use consistent configuration values.",
+        "height": 336,
+        "width": 448,
+        "color": 7
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        944,
+        352
+      ],
+      "typeVersion": 1,
+      "id": "a852a68a-09ff-402b-ae8d-798dbff6f1f5",
+      "name": "Sticky Note1"
+    },
+    {
+      "parameters": {
+        "content": "##  Gold Price Fetching\n\nFetches real-time gold price (XAU) from the API.\nExtracts and formats the price into a usable field (goldPrice).",
+        "height": 368,
+        "width": 432,
+        "color": 7
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        1600,
+        32
+      ],
+      "typeVersion": 1,
+      "id": "06d620e0-be81-4567-883d-1699aa9ef655",
+      "name": "Sticky Note2"
+    },
+    {
+      "parameters": {
+        "content": "## Silver Price Fetching\n\nFetches real-time silver price (XAG) from the API.\nExtracts and formats the price into a usable field (silverPrice).",
+        "height": 416,
+        "width": 464,
+        "color": 7
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        1568,
+        640
+      ],
+      "typeVersion": 1,
+      "id": "55a1b0b4-ae49-46f7-a425-0b0dc2419789",
+      "name": "Sticky Note3"
+    },
+    {
+      "parameters": {
+        "content": "## Data Merge & Ratio Calculation\n\nCombines gold and silver data into a single dataset.\nCalculates the Gold-Silver ratio for analysis.",
+        "height": 432,
+        "width": 640,
+        "color": 7
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        2144,
+        304
+      ],
+      "typeVersion": 1,
+      "id": "8711003e-9ea2-4c17-a4cd-d4ecbcbc23b6",
+      "name": "Sticky Note4"
+    },
+    {
+      "parameters": {
+        "content": "## Buy Silver Condition\n\nChecks if the ratio is above the upper threshold.\nIdentifies when silver is undervalued compared to gold.",
+        "height": 432,
+        "width": 288,
+        "color": 7
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        2896,
+        304
+      ],
+      "typeVersion": 1,
+      "id": "4d9d12d2-537c-498e-a960-b81883323259",
+      "name": "Sticky Note5"
+    },
+    {
+      "parameters": {
+        "content": "## Buy Gold Condition\n\nChecks if the ratio is below the lower threshold.\nIdentifies when gold is undervalued compared to silver.",
+        "height": 368,
+        "width": 320,
+        "color": 7
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        3344,
+        704
+      ],
+      "typeVersion": 1,
+      "id": "ca8ab57d-ca4e-4508-bd84-58799cac2041",
+      "name": "Sticky Note6"
+    },
+    {
+      "parameters": {
+        "content": "## Signal Assignment\n\nAssigns Buy Silver, Buy Gold, or Hold based on conditions.\nAdds structured insight and interpretation for the signal.",
+        "height": 912,
+        "width": 368,
+        "color": 7
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        3904,
+        256
+      ],
+      "typeVersion": 1,
+      "id": "6028800c-1cc1-4c3c-a390-b0549e4d44af",
+      "name": "Sticky Note7"
+    },
+    {
+      "parameters": {
+        "content": "## Final Processing & Alert\n\nMerges all signals and formats the final output report.\nSends a detailed email alert with prices, ratio, and analysis.",
+        "height": 480,
+        "width": 800,
+        "color": 7
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        4496,
+        464
+      ],
+      "typeVersion": 1,
+      "id": "a0cc9e01-940e-48a9-805e-f660a9d02fa6",
+      "name": "Sticky Note8"
+    },
+    {
+      "parameters": {
+        "url": "=https://www.goldapi.io/api/XAU/{{$json.currency}}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "x-access-token",
+              "value": "={{$json.goldApiKey}}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        1648,
+        208
+      ],
+      "id": "f3a20678-284e-4473-ab70-7a3826299ab4",
+      "name": "Fetch Gold Price"
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        1008,
+        512
+      ],
+      "id": "9cc7f190-1d4c-4d08-9218-69ee867f86b1",
+      "name": "Manual Trigger"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "403c7d22-b117-4f13-aa7c-ab4add61ff8c",
+              "name": "goldPrice",
+              "value": "={{ $json.price }}",
+              "type": "number"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        1856,
+        208
+      ],
+      "id": "14d69af6-46ce-4996-b865-24ab796bc8d9",
+      "name": "Format Prices"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "1002307a-ac6d-41c8-b4b9-a7beb61f5237",
+              "name": "silverPrice",
+              "value": "={{ $json.price }}",
+              "type": "number"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        1872,
+        800
+      ],
+      "id": "3f92f03e-e4df-4a34-b1c1-759d6e2b856c",
+      "name": "Format Prices1"
+    },
+    {
+      "parameters": {
+        "mode": "raw",
+        "jsonOutput": "{\n  \"goldApiKey\": \"\",\n  \"alertEmail\": \"vishakag21@gmail.com\",\n  \"buySilverThreshold\": 80,\n  \"buyGoldThreshold\": 60,\n  \"currency\": \"INR\"\n}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        1232,
+        512
+      ],
+      "id": "bfdcb0ec-d1e6-4073-a1b2-5e6f4af60784",
+      "name": "Set Global Config"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Fetch Silver Price (XAG)": {
+      "main": [
+        [
+          {
+            "node": "Format Prices1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Merge Gold & Silver Responses": {
+      "main": [
+        [
+          {
+            "node": "Calculate Gold-Silver Ratio",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Calculate Gold-Silver Ratio": {
+      "main": [
+        [
+          {
+            "node": "Ratio > BuySilver Threshold?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Ratio > BuySilver Threshold?": {
+      "main": [
+        [
+          {
+            "node": "Signal — BUY SILVER",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Ratio < BuyGold Threshold?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Ratio < BuyGold Threshold?": {
+      "main": [
+        [
+          {
+            "node": "Signal — BUY GOLD",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Signal — HOLD",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Signal — HOLD": {
+      "main": [
+        [
+          {
+            "node": "Merge All Signal Branches",
+            "type": "main",
+            "index": 2
+          }
+        ]
+      ]
+    },
+    "Signal — BUY SILVER": {
+      "main": [
+        [
+          {
+            "node": "Merge All Signal Branches",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Signal — BUY GOLD": {
+      "main": [
+        [
+          {
+            "node": "Merge All Signal Branches",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Merge All Signal Branches": {
+      "main": [
+        [
+          {
+            "node": "Format Final Alert Output",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format Final Alert Output": {
+      "main": [
+        [
+          {
+            "node": "Send Alert Email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch Gold Price": {
+      "main": [
+        [
+          {
+            "node": "Format Prices",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Manual Trigger": {
+      "main": [
+        [
+          {
+            "node": "Set Global Config",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format Prices": {
+      "main": [
+        [
+          {
+            "node": "Merge Gold & Silver Responses",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format Prices1": {
+      "main": [
+        [
+          {
+            "node": "Merge Gold & Silver Responses",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Set Global Config": {
+      "main": [
+        [
+          {
+            "node": "Fetch Gold Price",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Fetch Silver Price (XAG)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "versionId": "d2603d6f-8d05-497e-9823-df8d47d8da15",
+  "meta": {
+    "instanceId": "f27739ea7ff3a87f7bf9c66c729159b4bef14582f083ae2ee9bbd27cecc68161"
+  },
+  "id": "QG8Ui6nKP1yjkd5N",
+  "tags": []
+}

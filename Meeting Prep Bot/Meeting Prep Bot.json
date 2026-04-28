@@ -1,0 +1,436 @@
+{
+  "nodes": [
+    {
+      "parameters": {
+        "operation": "getAll",
+        "calendar": {
+          "__rl": true,
+          "value": "primary",
+          "mode": "list",
+          "cachedResultName": "primary"
+        },
+        "returnAll": true,
+        "options": {
+          "timeMin": "={{ $today.plus({days:1}).startOf('day').toISO() }}",
+          "timeMax": "={{ $today.plus({days:1}).endOf('day').toISO() }}"
+        }
+      },
+      "id": "40fb26b2-7dd8-404b-abed-6c13aaba443b",
+      "name": "Get Tomorrow's Events",
+      "type": "n8n-nodes-base.googleCalendar",
+      "typeVersion": 1,
+      "position": [
+        -880,
+        304
+      ],
+      "alwaysOutputData": true,
+      "credentials": {
+        "googleCalendarOAuth2Api": {
+          "id": "XCVbmrXQFUCiZXlD",
+          "name": "Google Calendar OAuth2 API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "id-2",
+              "name": "hasEvents",
+              "value": "={{ $input.all().filter(item => item.json.summary !== undefined).length > 0 }}",
+              "type": "boolean"
+            },
+            {
+              "id": "id-3",
+              "name": "eventCount",
+              "value": "={{ $input.all().length }}",
+              "type": "number"
+            }
+          ]
+        },
+        "includeOtherFields": true,
+        "options": {
+          "ignoreConversionErrors": true
+        }
+      },
+      "id": "77c27d26-b7e0-41d6-b08d-cb4bdb34ffd2",
+      "name": "Prepare Event Check",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        -672,
+        304
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "boolean": [
+            {
+              "value1": "={{ $json.hasEvents }}",
+              "value2": true
+            }
+          ]
+        }
+      },
+      "id": "cbf611f4-4012-4578-bb76-c7ac3cca7886",
+      "name": "Has Events?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [
+        -256,
+        304
+      ]
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "id": "1c556590-66ee-442c-afeb-100727ac8061",
+      "name": "Loop Over Events",
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [
+        240,
+        -32
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "key",
+              "value": ""
+            }
+          ]
+        },
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {}
+          ]
+        },
+        "sendBody": true,
+        "contentType": "raw",
+        "rawContentType": "application/json",
+        "body": "={\n\n  \"systemInstruction\": {\n    \"parts\": [{\n      \"text\": \"You are a senior executive assistant specializing in meeting preparation. You write sharp, concise, and actionable briefings for busy professionals. Given an event title, time, description, attendees, and location, you produce a single focused paragraph that helps the attendee walk into any meeting fully prepared. Your tone is professional and confident. You never repeat the event title or time in your response. You never use bullet points. You always write in flowing prose under 120 words.\"\n    }]\n  },\n  \"contents\": [{\n    \"role\": \"user\",\n    \"parts\": [{\n      \"text\": \"Event Title: {{ $json.summary }}\\nTime: {{ $json.start.dateTime }}\\nDescription: {{ $json.description || 'No description provided' }}\\nAttendees: {{ $json.attendees ? $json.attendees.map(a => a.email).join(', ') : 'Not specified' }}\\nLocation: {{ $json.location || 'Not specified' }}\\n\\nWrite a professional one-paragraph meeting preparation summary for this event. Include what this meeting is likely about based on the title and description, 2-3 specific talking points or questions to prepare in advance, any materials or context the attendee should review beforehand, and what outcome or decision to aim for by the end of the meeting. Be direct, actionable, and professional. Write in flowing prose only. Keep it under 120 words.\"\n    }]\n  }],\n  \"generationConfig\": {\n    \"maxOutputTokens\": 500,\n    \"temperature\": 0.4\n  }\n}",
+        "options": {}
+      },
+      "id": "4c317544-9176-46c0-93a7-3fc51d426231",
+      "name": "AI Meeting Summary",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        736,
+        560
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Parse Gemini API response\n// The HTTP Request response contains the Gemini reply.\n// We embedded _eventTitle and _eventTime in the request body so Gemini echoes them back — but that's unreliable.\n// Instead we use $('Loop Over Events').item to get the original calendar item for THIS batch item.\nconst items = $input.all();\nconst results = [];\n\nfor (let i = 0; i < items.length; i++) {\n  const item = items[i];\n\n  // Gemini response: candidates[0].content.parts[0].text\n  const summaryText = item.json.candidates?.[0]?.content?.parts?.[0]?.text || 'Summary not available';\n\n  // Get original calendar event from the loop node\n  const loopItem = $('Loop Over Events').item;\n  const eventTitle = loopItem?.json?.summary || 'Untitled Event';\n  const eventTime = loopItem?.json?.start?.dateTime || loopItem?.json?.start?.date || '';\n\n  results.push({\n    json: {\n      eventTitle,\n      eventTime,\n      aiSummary: summaryText\n    }\n  });\n}\n\nreturn results;\n"
+      },
+      "id": "d5c1c4de-3142-4d68-81b8-5d2544b22009",
+      "name": "Parse AI Response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        944,
+        560
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const items = $input.all();\n\n// Format time helper\nfunction formatTime(isoString) {\n  if (!isoString) return '';\n  const d = new Date(isoString);\n  return d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true });\n}\n\nfunction formatDate(isoString) {\n  if (!isoString) return '';\n  const d = new Date(isoString);\n  return d.toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });\n}\n\nconst meetingCount = items.length;\nconst dateLabel = items[0]?.json?.eventTime ? formatDate(items[0].json.eventTime) : 'Tomorrow';\n\nlet cardsHtml = '';\n\nfor (const item of items) {\n  const title = item.json.eventTitle || 'Untitled Meeting';\n  const time = item.json.eventTime ? formatTime(item.json.eventTime) : 'All Day';\n  const summary = item.json.aiSummary || 'No summary available.';\n\n  cardsHtml += `\n  <div style=\"margin-bottom:28px;border:1px solid #e8ecf0;border-radius:10px;overflow:hidden;\">\n    <div style=\"background:#f7f9fc;padding:16px 20px;border-bottom:1px solid #e8ecf0;\">\n      <p style=\"margin:0 0 3px;font-size:11px;letter-spacing:1.5px;text-transform:uppercase;color:#4f8ef7;font-weight:600;\">${time}</p>\n      <h2 style=\"margin:0;font-size:17px;color:#1a202c;font-weight:700;\">${title}</h2>\n    </div>\n    <div style=\"padding:18px 20px;\">\n      <p style=\"margin:0;font-size:14px;color:#4a5568;line-height:1.75;\">${summary}</p>\n    </div>\n  </div>`;\n}\n\nconst html = `\n<html>\n<body style=\"margin:0;padding:0;background:#f0f2f5;font-family:Arial,sans-serif;\">\n<table width=\"100%\" cellpadding=\"0\" cellspacing=\"0\" style=\"background:#f0f2f5;padding:32px 16px;\">\n  <tr><td align=\"center\">\n    <table width=\"620\" cellpadding=\"0\" cellspacing=\"0\" style=\"background:#ffffff;border-radius:12px;overflow:hidden;border:1px solid #e2e6ea;\">\n\n      <!-- HEADER -->\n      <tr><td style=\"background:#1a1a2e;padding:36px 40px 28px;\">\n        <p style=\"margin:0 0 8px;color:#a0aec0;font-size:11px;letter-spacing:2px;text-transform:uppercase;\">Meeting Intelligence</p>\n        <h1 style=\"margin:0 0 6px;color:#ffffff;font-size:26px;font-weight:700;\">Tomorrow's Briefing</h1>\n        <p style=\"margin:0;color:#718096;font-size:13px;\">${dateLabel} &nbsp;·&nbsp; ${meetingCount} meeting${meetingCount !== 1 ? 's' : ''} scheduled</p>\n      </td></tr>\n\n      <!-- BODY -->\n      <tr><td style=\"padding:32px 40px;\">\n        ${cardsHtml}\n      </td></tr>\n\n      <!-- FOOTER -->\n      <tr><td style=\"background:#f7f9fc;border-top:1px solid #e8ecf0;padding:20px 40px;\">\n        <table width=\"100%\"><tr>\n          <td style=\"font-size:12px;color:#a0aec0;\">Generated by Meeting Prep Bot</td>\n          <td align=\"right\" style=\"font-size:12px;color:#a0aec0;\">Powered by Gemini AI · n8n</td>\n        </tr></table>\n      </td></tr>\n\n    </table>\n  </td></tr>\n</table>\n</body>\n</html>`;\n\nreturn [{ json: { html } }];"
+      },
+      "id": "e22c3d08-68d0-4fa0-a14c-c68997696266",
+      "name": "Build HTML Digest",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        704,
+        -48
+      ]
+    },
+    {
+      "parameters": {
+        "sendTo": "vishakag21@gmail.com",
+        "subject": "=📅 Meeting Prep for {{ $today.plus({days:1}).toFormat('MMMM dd, yyyy') }}",
+        "message": "={{ $json.html }}",
+        "options": {}
+      },
+      "id": "df641274-ebcd-480b-901b-e39ca5345521",
+      "name": "Send Digest Email",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [
+        944,
+        -48
+      ],
+      "webhookId": "4e117006-3d62-4875-8437-0f892766d6f6",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "9BcoeM3ZeEh4rWuy",
+          "name": "Gmail OAuth2 API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "sendTo": "vishakag21@gmail.com",
+        "subject": "🎉 Free Day Tomorrow!",
+        "message": "<html><body style=\"font-family: Arial, sans-serif; padding: 20px;\"><h2>🎉 You have a free day tomorrow!</h2><p>No meetings scheduled. Use the time for deep work, rest, or something you enjoy.</p><p style=\"color: #95a5a6; font-size: 12px;\">Generated by Meeting Prep Bot • Gemini AI</p></body></html>",
+        "options": {}
+      },
+      "id": "f74633ce-81af-43be-aaf8-50b7fd83f50a",
+      "name": "Send Free Day Email",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [
+        256,
+        544
+      ],
+      "webhookId": "5b7cb42d-8a7e-4761-894a-f03aae77a76b",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "9BcoeM3ZeEh4rWuy",
+          "name": "Gmail OAuth2 API"
+        }
+      }
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        -1104,
+        304
+      ],
+      "id": "7c49050d-6f87-4738-9480-4693186377f1",
+      "name": "Manual Trigger"
+    },
+    {
+      "parameters": {
+        "content": "# Meeting Prepration Bot \n\n###  This workflow automatically prepares and delivers a smart meeting briefing for your upcoming day. When triggered, it fetches all events scheduled for tomorrow from Google Calendar. It then checks whether any meetings exist. If meetings are found, the workflow processes each event individually and uses AI to generate a concise, professional meeting preparation summary including context, talking points, and expected outcomes. These summaries are then formatted into a clean, visually structured HTML email digest. Finally, the workflow sends this digest to your email. If no meetings are scheduled, it sends a “Free Day” notification instead. This ensures you are always prepared or informed ahead of time without manual effort.\n\n# Setup Steps\n\n## Prepare Google Calendar\nEnsure your Google Calendar is connected and contains upcoming events with details like title, time, description, attendees, and location.\n\n## Connect Accounts in n8n\nAdd credentials for:\n\nGoogle Calendar (OAuth2)\nGmail (for sending emails)\nGemini / Google AI API (API key)\n\n## Add Trigger\nStart with a Manual Trigger (or Cron Trigger if you want automation daily).\n\n## Fetch Calendar Events\nUse Google Calendar node to get all events scheduled for tomorrow using time filters.\n\n## Add Event Check Logic\nUse a Set node to calculate whether events exist and count them, followed by an IF node to branch logic.\n\n## Process Each Event\nUse Split In Batches node to loop through each event individually.\n\n## Generate AI Meeting Summary\nUse HTTP Request node to call Gemini API and generate a professional meeting briefing.\n\n## Parse AI Response\nUse Code node to extract clean summary, event title, and time from AI response.\n\n## Build Email Digest\nUse Code node to format all summaries into a styled HTML email layout.\n\n## Send Email Notification\nIf meetings exist → Send digest email via Gmail\nIf no meetings → Send “Free Day” email notification",
+        "height": 1360,
+        "width": 784
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        -1952,
+        -272
+      ],
+      "typeVersion": 1,
+      "id": "3d4def96-de5a-418e-94cc-b54c1b8d59c2",
+      "name": "Sticky Note"
+    },
+    {
+      "parameters": {
+        "content": "##  Fetch Events & Prepare Check\n\nAutomatically retrieves all tomorrow’s calendar events and prepares basic checks like total events and whether any meetings exist. This step ensures the workflow knows if further processing is needed.",
+        "height": 384,
+        "width": 448,
+        "color": 7
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        -944,
+        128
+      ],
+      "typeVersion": 1,
+      "id": "b28a53ca-1677-44d8-8125-414f6b3740b0",
+      "name": "Sticky Note1"
+    },
+    {
+      "parameters": {
+        "content": "## Event Availability Decision\n\nEvaluates whether meetings are scheduled or not. Based on this condition, the workflow either continues processing events or switches to sending a free-day notification.",
+        "height": 400,
+        "width": 416,
+        "color": 7
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        -416,
+        128
+      ],
+      "typeVersion": 1,
+      "id": "1b3a317d-a642-4552-8369-1cce15a3e437",
+      "name": "Sticky Note2"
+    },
+    {
+      "parameters": {
+        "content": "##  Free Day Notification\n\nSends a simple email notification when no meetings are scheduled, allowing the user to plan their day for deep work or rest.",
+        "height": 368,
+        "width": 368,
+        "color": 7
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        128,
+        336
+      ],
+      "typeVersion": 1,
+      "id": "704e76b1-affe-43d5-bd32-77815bfe837d",
+      "name": "Sticky Note3"
+    },
+    {
+      "parameters": {
+        "content": "## Event Processing Loop\n\nIterates through each calendar event one by one to enable individual processing and personalized summary generation.",
+        "height": 368,
+        "width": 352,
+        "color": 7
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        128,
+        -224
+      ],
+      "typeVersion": 1,
+      "id": "0890922f-4896-4daf-bc53-51873d9dff36",
+      "name": "Sticky Note4"
+    },
+    {
+      "parameters": {
+        "content": "## AI Summary Generation & Parsing\n\nGenerates a professional meeting preparation summary using AI and then extracts structured data like event title, time, and summary for further use.",
+        "height": 368,
+        "width": 560,
+        "color": 7
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        608,
+        352
+      ],
+      "typeVersion": 1,
+      "id": "fcc19458-cef9-44a4-bccc-fbf6ccff2cbd",
+      "name": "Sticky Note5"
+    },
+    {
+      "parameters": {
+        "content": "## AI Summary Generation & Parsing\n\nGenerates a professional meeting preparation summary using AI and then extracts structured data like event title, time, and summary for further use.",
+        "height": 368,
+        "width": 544,
+        "color": 7
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        592,
+        -224
+      ],
+      "typeVersion": 1,
+      "id": "a6d8d32d-e28d-40af-b9d0-36f27e2392d2",
+      "name": "Sticky Note6"
+    }
+  ],
+  "connections": {
+    "Get Tomorrow's Events": {
+      "main": [
+        [
+          {
+            "node": "Prepare Event Check",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Event Check": {
+      "main": [
+        [
+          {
+            "node": "Has Events?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Has Events?": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Events",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Send Free Day Email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Loop Over Events": {
+      "main": [
+        [
+          {
+            "node": "Build HTML Digest",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "AI Meeting Summary",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Meeting Summary": {
+      "main": [
+        [
+          {
+            "node": "Parse AI Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse AI Response": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Events",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build HTML Digest": {
+      "main": [
+        [
+          {
+            "node": "Send Digest Email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Manual Trigger": {
+      "main": [
+        [
+          {
+            "node": "Get Tomorrow's Events",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "meta": {
+    "instanceId": "f27739ea7ff3a87f7bf9c66c729159b4bef14582f083ae2ee9bbd27cecc68161"
+  }
+}
